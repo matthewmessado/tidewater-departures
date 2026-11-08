@@ -1,0 +1,6 @@
+# Keep LF line endings in the repo and on disk, even on Windows.
+# Bash scripts with Windows (CRLF) endings fail on Linux with "\r: command not found".
+* text=auto eol=lf
+*.pdf binary
+*.png binary
+*.jpg binary

@@ -1,0 +1,10 @@
+node_modules/
+npm-debug.log*
+.env
+.env.*
+!.env.example
+deploy_key
+deploy_key.pub
+*.pem
+.DS_Store
+Thumbs.db

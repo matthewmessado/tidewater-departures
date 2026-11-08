@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log*
+.git
+.github
+.gitignore
+.dockerignore
+test
+docs
+deploy
+*.md
+*.pdf
+.env
+.env.*

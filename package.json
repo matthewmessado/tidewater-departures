@@ -1,0 +1,18 @@
+{
+  "name": "tidewater-departures-api",
+  "version": "1.0.0",
+  "description": "Tidewater Tours Departures API - shipped automatically via GitHub Actions and Docker",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

@@ -1,0 +1,196 @@
+name: CI/CD
+
+# Pull requests get the test job only. Pushes to main run the whole chain:
+#   test  ->  build & push image  ->  deploy to the Azure VM + health check
+# Every later job declares `needs:` on the one before it, so a red test job
+# means nothing is built, pushed or deployed.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# This service's identity on the Azure VM: the container name, the folder
+# /opt/<APP_NAME> and the public port. Keep them in step with rollback.yml and
+# the defaults in deploy/common.sh.
+env:
+  APP_NAME: tidewater-departures
+  APP_PORT: "8081"
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  build-and-push:
+    name: Build & push image
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Work out image tags
+        id: meta
+        run: |
+          # GHCR requires lowercase names; github.repository may contain capitals.
+          repo="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/${repo}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "latest=ghcr.io/${repo}:latest"       >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            ${{ steps.meta.outputs.latest }}
+          build-args: |
+            APP_VERSION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image summary
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          echo "### Image pushed" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy to Azure VM
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    # The secrets keep the generic VPS_ names; for this project they describe the Azure VM.
+    env:
+      IMAGE: ${{ needs.build-and-push.outputs.image }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          # Stop with a plain-English error if a secret is missing, not a cryptic ssh one.
+          missing=""
+          [ -n "$VPS_HOST" ]    || missing="$missing VPS_HOST"
+          [ -n "$VPS_USER" ]    || missing="$missing VPS_USER"
+          [ -n "$VPS_SSH_KEY" ] || missing="$missing VPS_SSH_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error title=Missing secrets::Add these in Settings > Secrets and variables > Actions:$missing"
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          # tr strips Windows line endings in case the key was pasted from a CRLF file.
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1 </dev/null; then
+            echo "::error title=Bad SSH key::VPS_SSH_KEY must be the whole private key file, BEGIN and END lines included, with no passphrase."
+            exit 1
+          fi
+
+          ssh-keyscan -T 10 -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "::error title=VM unreachable::No SSH answer from VPS_HOST on port $VPS_PORT. Check the VM is running, VPS_HOST is its public IP, and its network security group allows SSH (22) from any source, because GitHub's runners use many addresses."
+            exit 1
+          fi
+
+          cat >> ~/.ssh/config <<EOC
+          Host vps
+            HostName $VPS_HOST
+            User $VPS_USER
+            Port $VPS_PORT
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            BatchMode yes
+            ConnectTimeout 15
+          EOC
+
+      - name: Check the VM is ready
+        run: |
+          if ! ssh vps true; then
+            echo "::error title=SSH login refused::The VM rejected the key for VPS_USER. Add the pipeline key's public half to that user's ~/.ssh/authorized_keys (README, One-time setup step 3)."
+            exit 1
+          fi
+          if ! ssh vps 'docker info >/dev/null 2>&1'; then
+            echo "::error title=Docker not usable::VPS_USER cannot run docker. Install Docker and add the user to the docker group: sudo usermod -aG docker <user> (README, One-time setup step 3)."
+            exit 1
+          fi
+          # The image is built for x86_64. Azure's free Arm size (B2pts v2) cannot run it.
+          arch="$(ssh vps uname -m)"
+          if [ "$arch" != "x86_64" ]; then
+            echo "::error title=Wrong CPU type::The VM is $arch but the image is built for x86_64. Recreate the VM with an x64 size such as Standard_B2ats_v2 or Standard_B1s."
+            exit 1
+          fi
+          # $APP_NAME is expanded here, before the command is sent to the VM.
+          # shellcheck disable=SC2029
+          if ! ssh vps "test -w /opt/$APP_NAME/state"; then
+            echo "::error title=Server not prepared::/opt/$APP_NAME is missing or not writable by VPS_USER. Create it and give it to that user: sudo mkdir -p /opt/$APP_NAME/bin /opt/$APP_NAME/state, then sudo chown -R <user>:<user> /opt/$APP_NAME."
+            exit 1
+          fi
+          echo "VM ready: SSH login, docker, x86_64 and /opt/$APP_NAME all OK"
+
+      - name: Copy deploy scripts to the VM
+        run: |
+          # shellcheck disable=SC2029
+          ssh vps "mkdir -p /opt/$APP_NAME/bin /opt/$APP_NAME/state"
+          scp deploy/common.sh deploy/deploy.sh deploy/rollback.sh "vps:/opt/$APP_NAME/bin/"
+          # shellcheck disable=SC2029
+          ssh vps "chmod +x /opt/$APP_NAME/bin/*.sh"
+
+      - name: Deploy and health-check
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          # $IMAGE, $APP_NAME, $APP_PORT and $GHCR_USER are expanded here on purpose;
+          # \$? and \$rc run on the VM.
+          # The token travels over stdin, never on a command line. docker login caches it in
+          # ~/.docker/config.json on the VM, so log out again whatever the script returns.
+          # shellcheck disable=SC2029
+          echo "$GHCR_TOKEN" | ssh vps "docker login ghcr.io -u '$GHCR_USER' --password-stdin >/dev/null \
+            && APP_NAME='$APP_NAME' APP_PORT='$APP_PORT' /opt/$APP_NAME/bin/deploy.sh '$IMAGE'; \
+            rc=\$?; docker logout ghcr.io >/dev/null; exit \$rc"
+
+      - name: Deployment summary
+        run: |
+          echo "### Deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$IMAGE\` is live on port $APP_PORT and passed /health" >> "$GITHUB_STEP_SUMMARY"

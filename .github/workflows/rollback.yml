@@ -1,0 +1,107 @@
+name: Rollback
+
+# One step: Actions tab -> Rollback -> "Run workflow".
+# Leave the image blank to go back to the previously deployed image, or paste
+# a specific image reference to pin any earlier build.
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'Image to roll back to (blank = previously deployed image)'
+        required: false
+        default: ''
+
+# Same service identity as ci-cd.yml; keep the two files in step.
+env:
+  APP_NAME: tidewater-departures
+  APP_PORT: "8081"
+
+concurrency:
+  group: deploy-refs/heads/main
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: Roll back on Azure VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    # The secrets keep the generic VPS_ names; for this project they describe the Azure VM.
+    env:
+      TARGET: ${{ inputs.image }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          # Stop with a plain-English error if a secret is missing, not a cryptic ssh one.
+          missing=""
+          [ -n "$VPS_HOST" ]    || missing="$missing VPS_HOST"
+          [ -n "$VPS_USER" ]    || missing="$missing VPS_USER"
+          [ -n "$VPS_SSH_KEY" ] || missing="$missing VPS_SSH_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error title=Missing secrets::Add these in Settings > Secrets and variables > Actions:$missing"
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          # tr strips Windows line endings in case the key was pasted from a CRLF file.
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1 </dev/null; then
+            echo "::error title=Bad SSH key::VPS_SSH_KEY must be the whole private key file, BEGIN and END lines included, with no passphrase."
+            exit 1
+          fi
+
+          ssh-keyscan -T 10 -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "::error title=VM unreachable::No SSH answer from VPS_HOST on port $VPS_PORT. Check the VM is running, VPS_HOST is its public IP, and its network security group allows SSH (22) from any source, because GitHub's runners use many addresses."
+            exit 1
+          fi
+
+          cat >> ~/.ssh/config <<EOC
+          Host vps
+            HostName $VPS_HOST
+            User $VPS_USER
+            Port $VPS_PORT
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            BatchMode yes
+            ConnectTimeout 15
+          EOC
+
+      - name: Check the VM is ready
+        run: |
+          if ! ssh vps true; then
+            echo "::error title=SSH login refused::The VM rejected the key for VPS_USER. Add the pipeline key's public half to that user's ~/.ssh/authorized_keys (README, One-time setup step 3)."
+            exit 1
+          fi
+          # shellcheck disable=SC2029
+          if ! ssh vps "test -x /opt/$APP_NAME/bin/rollback.sh"; then
+            echo "::error title=Nothing deployed yet::/opt/$APP_NAME/bin/rollback.sh is missing. Run the CI/CD workflow successfully at least twice before rolling back."
+            exit 1
+          fi
+          echo "VM ready for rollback"
+
+      - name: Roll back and health-check
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          # $TARGET, $APP_NAME, $APP_PORT and $GHCR_USER are expanded here on purpose;
+          # \$? and \$rc run on the VM.
+          # shellcheck disable=SC2029
+          echo "$GHCR_TOKEN" | ssh vps "docker login ghcr.io -u '$GHCR_USER' --password-stdin >/dev/null \
+            && APP_NAME='$APP_NAME' APP_PORT='$APP_PORT' /opt/$APP_NAME/bin/rollback.sh '$TARGET'; \
+            rc=\$?; docker logout ghcr.io >/dev/null; exit \$rc"
+
+      - name: Rollback summary
+        run: |
+          echo "### Rolled back" >> "$GITHUB_STEP_SUMMARY"
+          echo "Target: ${TARGET:-previously deployed image}" >> "$GITHUB_STEP_SUMMARY"
