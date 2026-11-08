@@ -22,7 +22,7 @@ people a button for rare operations such as a rollback.
 **Example from this project.** A push to `main` triggers `ci-cd.yml`. Job `test` runs
 `npm test`. Only if it passes does `build-and-push` build the Dockerfile, tag the image
 `ghcr.io/<owner>/tidewater-departures:<commit-sha>` and push it. Only then does `deploy`
-SSH to the Azure VM as `mathew`, run `deploy.sh`, and wait for `GET /health` on port 8081
+SSH to the Azure VM as `mathew`, run `deploy.sh`, and wait for `GET /health` on port 8080
 to return the new SHA. A second workflow, `rollback.yml`, is a manual *Run workflow*
 button that restores the previous image. Pull requests run only the `test` job, so
 reviewers see red or green before merging.
@@ -104,7 +104,7 @@ Other limits:
 | Did the pipeline pass, and which job failed? | Actions tab: job graph per run, red/green/grey (skipped) per job, step logs expand on click |
 | Why did it fail? | Named errors from the pre-flight checks (missing secrets, bad key, VM unreachable, login refused, Docker not usable, wrong CPU type, server not prepared) |
 | What image was built, and is it live? | The run summary at the top of the run: "Image pushed" and "Deployed ... passed /health" |
-| What is running on the VM right now? | `http://<vm-ip>:8081/health` returns `{"status":"ok","version":"<sha>"}`; `docker ps` shows `(healthy)` from the Dockerfile `HEALTHCHECK` |
+| What is running on the VM right now? | `http://<vm-ip>:8080/health` returns `{"status":"ok","version":"<sha>"}`; `docker ps` shows `(healthy)` from the Dockerfile `HEALTHCHECK` |
 | Deploy history | Repo → Environments → production lists every deployment with its commit |
 | Why did the container fail its health check? | `deploy.sh` prints the last 30 container log lines into the Actions log |
 | App logs on the VM | `docker logs --tail 100 tidewater-departures`; the app logs JSON lines such as `{"level":"info","msg":"listening",...}` |
@@ -121,7 +121,7 @@ Environments page and the VM's Monitoring graphs are the dashboard. Prometheus s
 
 | Setting | Value | Why it matters |
 |---|---|---|
-| `env.APP_NAME` / `env.APP_PORT` | `tidewater-departures` / `8081` | The container name, the folder on the VM and the public port |
+| `env.APP_NAME` / `env.APP_PORT` | `tidewater-departures` / `8080` | The container name, the folder on the VM and the public port |
 | `on.push.branches` / `on.pull_request` | `main` | Pull requests get tests only; pushes to main get the full chain |
 | `needs:` | `build-and-push` needs `test`; `deploy` needs `build-and-push` | The gate. A red test skips everything after it |
 | `if:` on build | `github.event_name == 'push' && github.ref == 'refs/heads/main'` | Never build or deploy from a pull request |
@@ -150,7 +150,7 @@ Azure settings that matter:
 | Size | `Standard_B2ats_v2` or `Standard_B1s` | Free-account x64 sizes; enough memory for Docker and one small app |
 | Admin login | `azureuser` with the VM creator's SSH key | Sets the VM up; never given to GitHub |
 | Mathew's account | `mathew`: password for sudo, two keys in `authorized_keys`, in the `docker` group | His personal key for him, the pipeline key for GitHub |
-| Inbound rules | 22 and 8081 from any source | 22 for the runners, 8081 for users of the API |
+| Inbound rules | 22 and 8080 from any source | 22 for the runners, 8080 for users of the API |
 
 Server-side settings live in `deploy/common.sh` as overridable environment variables
 (`APP_NAME`, `APP_PORT`, `APP_DIR`, `STATE_DIR`, `HEALTH_RETRIES`). Nothing there is secret.
@@ -161,11 +161,11 @@ The full version is `docs/RUNBOOK.md`.
 
 * **Run locally:** `npm ci && npm start`, then open http://localhost:8080/health.
 * **Test:** `npm test` boots the app on a random port and calls every route. CI runs the same command.
-* **Set up the VM once:** create it in the portal and open port 8081. Then, as `azureuser`,
+* **Set up the VM once:** create it in the portal and open port 8080. Then, as `azureuser`,
   install Docker, create the `mathew` account, add both public keys and create
   `/opt/tidewater-departures` owned by `mathew`.
 * **Deploy:** push or merge to `main` and watch Actions → CI/CD. It is done when the Deploy
-  job prints `health check passed` and `http://<vm-ip>:8081/health` shows the new SHA.
+  job prints `health check passed` and `http://<vm-ip>:8080/health` shows the new SHA.
 * **Re-run a failed job:** open the run → *Re-run failed jobs*. Redeploying the same image
   is safe and keeps the `previous` record intact.
 * **Roll back (one step):** Actions → Rollback → *Run workflow* with the image box blank.
@@ -194,12 +194,12 @@ The full version is `docs/RUNBOOK.md`.
                                                     push :sha and :latest             docker login on VM       │
                                                             │                                                  │
                                                             ▼                                                  ▼
-                                                 GitHub Container Registry          Azure ── network security group (allow 22, 8081)
+                                                 GitHub Container Registry          Azure ── network security group (allow 22, 8080)
                                                  ghcr.io/<owner>/tidewater-departures            │
                                                  image = manifest + layer blobs                  ▼
                                                  (unchanged layers are not re-uploaded)   VM tidewater-vm, Ubuntu 24.04 x64
                                                                                           dockerd ── docker pull :sha
-                                                                                          container "tidewater-departures" :8081 → app :8080
+                                                                                          container "tidewater-departures" :8080 → app :8080
                                                                                           user mathew, HEALTHCHECK → /health
                                                                                           state: /opt/tidewater-departures/state/{current,previous}
 ```
@@ -223,10 +223,10 @@ What the pieces are doing:
   already have, then points the tags `<sha>` and `latest` at that manifest. Tags are
   pointers: `latest` moves, `<sha>` never does, which is what makes it a safe rollback target.
 * **Azure networking.** Traffic reaches the VM through its public IP and the network
-  security group, a firewall that sits outside the VM. Only ports 22 and 8081 are allowed in.
+  security group, a firewall that sits outside the VM. Only ports 22 and 8080 are allowed in.
 * **Deploy.** The runner never talks to Docker on the VM directly. It runs a shell script
   over SSH as `mathew`. That script asks `dockerd` to pull the manifest, download missing
   layers, remove the old `tidewater-departures` container and start a new one,
-  publishing the VM's port 8081 to the app's port 8080 inside the container.
+  publishing the VM's port 8080 to the app's port 8080 inside the container.
   `APP_VERSION` is already set inside the image, and `/health` returns it, which
   closes the loop between "what git says" and "what is serving".

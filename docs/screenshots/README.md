@@ -19,7 +19,7 @@ public IP.
 2. Commit and push to `main` with a message like `test: break a test to prove the gate`.
 3. Actions → CI/CD → open the run. **Test** is red; **Build & push image** and
    **Deploy to Azure VM** show as skipped (grey). Capture that.
-4. Confirm nothing deployed: `http://<vm-ip>:8081/health` still shows the previous SHA.
+4. Confirm nothing deployed: `http://<vm-ip>:8080/health` still shows the previous SHA.
 5. Undo it and push again. That run deploys, so the VM now has a previous version:
 
    ```bash
@@ -41,9 +41,9 @@ This is a fallback screenshot if the VM is not ready in time; the real one below
 
 **The real one, on the VM** (needs the two green deploys from steps 1 and 2):
 
-1. Note the live version: `http://<vm-ip>:8081/health` → `"version":"<sha-B>"`.
+1. Note the live version: `http://<vm-ip>:8080/health` → `"version":"<sha-B>"`.
 2. Actions → **Rollback** → *Run workflow* → leave the image blank → *Run workflow*.
 3. Open the run → *Roll back on Azure VM* job log. Capture the lines
    `rolling back: ...:<sha-B> -> ...:<sha-A>`, `health check passed` and `ROLLED BACK to ...`.
-4. Refresh `http://<vm-ip>:8081/health`. It now shows `"version":"<sha-A>"`.
+4. Refresh `http://<vm-ip>:8080/health`. It now shows `"version":"<sha-A>"`.
    Capture that as `rollback-health.png`: it proves the previous version is running.

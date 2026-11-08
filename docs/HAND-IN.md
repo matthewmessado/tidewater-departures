@@ -15,11 +15,11 @@ Due: **Mon 9 Nov, 09:00**
 
 - [ ] Personal key and pipeline key created on your laptop
 - [ ] Azure VM created: Ubuntu 24.04 x64, `Standard_B2ats_v2` or `Standard_B1s`, SSH key login
-- [ ] Inbound rules allow 22 and 8081 from any source
+- [ ] Inbound rules allow 22 and 8080 from any source
 - [ ] VM prepared: Docker installed, `mathew` account created, both public keys added, `/opt/tidewater-departures` owned by `mathew`
 - [ ] Both `ssh -i ... mathew@<vm-ip> docker ps` checks (personal key and pipeline key) work without a password
 - [ ] Three secrets added to the repo (`VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`)
-- [ ] First push to `main` is green end to end; `http://<vm-ip>:8081/health` shows the SHA
+- [ ] First push to `main` is green end to end; `http://<vm-ip>:8080/health` shows the SHA
 - [ ] Red run produced and reverted, so two green deploys now exist
 - [ ] Rollback workflow run; `/health` shows the earlier SHA
 - [ ] Screenshots saved in `docs/screenshots/` and committed

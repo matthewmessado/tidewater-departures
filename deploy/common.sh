@@ -8,7 +8,7 @@
 # block at the top of the workflow files.
 
 APP_NAME="${APP_NAME:-tidewater-departures}"
-APP_PORT="${APP_PORT:-8081}"
+APP_PORT="${APP_PORT:-8080}"
 APP_DIR="${APP_DIR:-/opt/$APP_NAME}"
 STATE_DIR="${STATE_DIR:-$APP_DIR/state}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${APP_PORT}/health}"

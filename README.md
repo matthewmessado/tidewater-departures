@@ -10,7 +10,7 @@ previous image is one click.
 > Runbook: [docs/RUNBOOK.md](docs/RUNBOOK.md). Nine-step notes: [docs/NINE-STEP-NOTES.md](docs/NINE-STEP-NOTES.md).
 > Hand-in checklist: [docs/HAND-IN.md](docs/HAND-IN.md).
 
-**Live health check:** `http://<vm-ip>:8081/health` (replace with the VM's public IP once it exists)
+**Live health check:** `http://<vm-ip>:8080/health` (replace with the VM's public IP once it exists)
 
 ## What is in the box
 
@@ -52,7 +52,7 @@ curl localhost:8080/health
 ```
 
 Inside the container the app always listens on 8080. The `-p` flag decides which port on
-the host reaches it. On the Azure VM that host port is 8081 (`-p 8081:8080`).
+the host reaches it. On the Azure VM that host port is 8080 (`-p 8080:8080`).
 
 ## How the pipeline works
 
@@ -99,8 +99,8 @@ same scripts would run unchanged on AWS EC2.
 | Size                     | `Standard_B2ats_v2` (or `Standard_B1s`) | Free-account x64 sizes. **Not** B2pts v2: that one is Arm and cannot run the image |
 | Admin user               | `azureuser`, with the VM creator's SSH key | Sets the VM up once; never given to GitHub     |
 | Mathew's account         | `mathew`: a normal account with a password (for sudo) and two SSH keys | Mathew logs in with his own key; GitHub logs in with the pipeline's key |
-| Network security group   | Allow 22 and 8081 inbound from any source | 22 for GitHub's runners (they use many IPs), 8081 for the app |
-| Container / folder / port | `tidewater-departures` / `/opt/tidewater-departures` / `8081` | Set once at the top of both workflow files |
+| Network security group   | Allow 22 and 8080 inbound from any source | 22 for GitHub's runners (they use many IPs), 8080 for the app |
+| Container / folder / port | `tidewater-departures` / `/opt/tidewater-departures` / `8080` | Set once at the top of both workflow files |
 
 The GitHub secrets are called `VPS_HOST`, `VPS_USER` and `VPS_SSH_KEY`. Here "VPS"
 simply means the Linux server the pipeline SSHes into, which is the Azure VM.
@@ -147,7 +147,7 @@ portal.azure.com -> **Create a resource** -> **Virtual machine**, then on **Basi
 resource and copy its **Public IP address**. That IP is `<vm-ip>` everywhere below.
 
 Then open the app port: the VM's **Networking** page -> add an **inbound port rule** ->
-destination port `8081`, protocol TCP, action Allow, name `allow-app-8081`.
+destination port `8080`, protocol TCP, action Allow, name `allow-app-8080`.
 
 Leave the SSH rule's source as **Any**. If it is limited to "My IP", GitHub's runners
 cannot reach the VM. Key-only login keeps that safe.
@@ -164,7 +164,7 @@ az group create --name tidewater-rg --location eastus
 az vm create --resource-group tidewater-rg --name tidewater-vm \
   --image Canonical:ubuntu-24_04-lts:server:latest --size Standard_B2ats_v2 \
   --admin-username azureuser --ssh-key-values ~/.ssh/azure-mathew.pub --public-ip-sku Standard
-az vm open-port --resource-group tidewater-rg --name tidewater-vm --port 8081 --priority 1010
+az vm open-port --resource-group tidewater-rg --name tidewater-vm --port 8080 --priority 1010
 ```
 
 `az vm create` prints `publicIpAddress` and opens SSH (22) by default.
@@ -203,7 +203,7 @@ sudo sshd -T | grep -i '^passwordauthentication'   # should say: passwordauthent
 
 If the upgrade says a reboot is needed, run `sudo reboot`, wait a minute and log back in.
 Leave `ufw` off: Azure's port rules already do the firewall's job. If you ever turn it on,
-run `sudo ufw allow OpenSSH` and `sudo ufw allow 8081/tcp` first, or you lock yourself out.
+run `sudo ufw allow OpenSSH` and `sudo ufw allow 8080/tcp` first, or you lock yourself out.
 
 `mathew`'s password only unlocks sudo; with password login off, SSH accepts keys only.
 (Shortcut: after `sudo adduser mathew`, `deploy/vps-setup.sh` does the Docker, group, key
@@ -253,7 +253,7 @@ git push -u origin main
 
 `-b main` matters: the pipeline only runs for the `main` branch. Watch the **Actions**
 tab: Test -> Build & push image -> Deploy to Azure VM. When all three are green, open
-`http://<vm-ip>:8081/health` and the `version` is your commit.
+`http://<vm-ip>:8080/health` and the `version` is your commit.
 
 ## Rolling back
 

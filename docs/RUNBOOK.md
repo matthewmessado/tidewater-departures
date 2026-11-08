@@ -1,8 +1,8 @@
 # Runbook: Tidewater Tours Departures API
 
-**Service:** container `tidewater-departures` on the Azure VM `tidewater-vm` (Ubuntu 24.04, x64), port 8081, Linux user `mathew`.
+**Service:** container `tidewater-departures` on the Azure VM `tidewater-vm` (Ubuntu 24.04, x64), port 8080, Linux user `mathew`.
 **Registry:** `ghcr.io/<owner>/tidewater-departures:<commit-sha>`.
-**Health:** `curl http://<vm-ip>:8081/health` → `{"status":"ok","version":"<sha>",...}`. The `version` is the git commit that is live.
+**Health:** `curl http://<vm-ip>:8080/health` → `{"status":"ok","version":"<sha>",...}`. The `version` is the git commit that is live.
 
 ## Deploy
 
@@ -10,7 +10,7 @@
 2. Watch **Actions → CI/CD**. Three jobs run in order: **Test → Build & push image → Deploy to Azure VM**.
    If Test is red, the other two are skipped and the VM is untouched.
 3. The Deploy log ends with `health check passed: {...}` and `DEPLOYED ghcr.io/...:<sha>`.
-   Confirm from outside: `curl http://<vm-ip>:8081/health` shows the new SHA.
+   Confirm from outside: `curl http://<vm-ip>:8080/health` shows the new SHA.
 4. If the new container never answers `/health` within 20 s, `deploy.sh` restarts the
    previous image automatically and the job fails red. Nothing more to undo.
 
@@ -24,7 +24,7 @@
   the `current`/`previous` pointers. Running it a second time rolls forward again.
 * To go to a specific build, paste its image reference (from the Build job's summary or
   the `ghcr.io` packages page) into the *image* box.
-* Verify: `curl http://<vm-ip>:8081/health` shows the older SHA.
+* Verify: `curl http://<vm-ip>:8080/health` shows the older SHA.
 
 **From the VM** (if GitHub is unreachable):
 `ssh -i ~/.ssh/tidewater-departures-deploy mathew@<vm-ip> /opt/tidewater-departures/bin/rollback.sh`
@@ -57,5 +57,5 @@ The deploy job stops with a named error. What each one means:
   then `sudo chown -R mathew:mathew /opt/tidewater-departures`.
 * **Wrong CPU type:** the VM is Arm. Recreate it with an x64 size such as `Standard_B2ats_v2`.
 * **Health check failed:** the Actions log already shows the container's last 30 log lines.
-* **Deploy is green but the browser cannot load the page:** port 8081 is not open in the
+* **Deploy is green but the browser cannot load the page:** port 8080 is not open in the
   VM's network security group. The health check runs on the VM itself, so it passes anyway.

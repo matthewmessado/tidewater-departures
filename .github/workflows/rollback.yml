@@ -14,7 +14,7 @@ on:
 # Same service identity as ci-cd.yml; keep the two files in step.
 env:
   APP_NAME: tidewater-departures
-  APP_PORT: "8081"
+  APP_PORT: "8080"
 
 concurrency:
   group: deploy-refs/heads/main

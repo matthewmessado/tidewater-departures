@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # OPTIONAL SHORTCUT. The README (One-time setup, step 3) prepares the VM by hand with a
 # normal `mathew` account. This script does the same Docker, group, key and folder steps
-# in one go for tidewater-departures on port 8081, on the Azure VM (Ubuntu 24.04, x64).
+# in one go for tidewater-departures on port 8080, on the Azure VM (Ubuntu 24.04, x64).
 #
 # Create the account first so it has a password for sudo (as azureuser on the VM):
 #   sudo adduser mathew
@@ -15,7 +15,7 @@
 # (no password, SSH key only), lets it run Docker, installs the public key for it,
 # creates /opt/tidewater-departures owned by it, and opens the port in ufw if ufw is
 # active. Azure's own firewall (the network security group) sits outside the VM, so
-# port 8081 is opened there separately, in the portal. The script never receives a
+# port 8080 is opened there separately, in the portal. The script never receives a
 # private key or any other secret. Safe to run again.
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -23,7 +23,7 @@ export DEBIAN_FRONTEND=noninteractive
 DEPLOY_USER="${1:?usage: vps-setup.sh <linux-user> [<public-key>]}"
 PUBKEY="${2:-}"
 APP_NAME="${APP_NAME:-tidewater-departures}"
-APP_PORT="${APP_PORT:-8081}"
+APP_PORT="${APP_PORT:-8080}"
 APP_DIR="/opt/$APP_NAME"
 
 if [[ "$(uname -m)" != "x86_64" ]]; then
