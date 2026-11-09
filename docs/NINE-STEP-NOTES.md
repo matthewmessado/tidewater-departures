@@ -6,12 +6,11 @@ Tidewater Tours Departures API on an Azure Linux VM. The structure follows the n
 ---
 
 ## 1. Purpose: why does it exist?
-
 Without a pipeline, someone builds the app by hand, copies it to the server and restarts
 it, with no record of what ran and nothing stopping a broken change. GitHub Actions turns
 every code change into a release that happens the same way every time: tests, build and
-deploy run on a machine that refuses to carry on when a step fails. "I pushed" becomes
-"the new version is live and healthy", with a log that proves it.
+deploy run on a machine that refuses to carry on when a step fails. "I deployed" gets
+replaced by a trusted workflow.
 
 ## 2. Use: what is it used for in real work?
 
@@ -22,7 +21,7 @@ people a button for rare operations such as a rollback.
 **Example from this project.** A push to `main` triggers `ci-cd.yml`. Job `test` runs
 `npm test`. Only if it passes does `build-and-push` build the Dockerfile, tag the image
 `ghcr.io/<owner>/tidewater-departures:<commit-sha>` and push it. Only then does `deploy`
-SSH to the Azure VM as `matthew`, run `deploy.sh`, and wait for `GET /health` on port 8080
+SSH to the Azure VM as `mathew`, run `deploy.sh`, and wait for `GET /health` on port 8080
 to return the new SHA. A second workflow, `rollback.yml`, is a manual *Run workflow*
 button that restores the previous image. Pull requests run only the `test` job, so
 reviewers see red or green before merging.
@@ -65,8 +64,8 @@ access, and it is easy to paste a key into a file or print it in a log. How it i
 every value lives in Actions secrets and reaches the shell only through `env:`. The SSH
 key is written to a file on the runner, which is destroyed with the VM. The registry
 token is the job-scoped `GITHUB_TOKEN`, piped over stdin to `docker login` and logged
-out afterwards. The pipeline has its own key, separate from matthew's personal one, so
-it can be revoked on its own; sudo still needs matthew's password, which GitHub never has.
+out afterwards. The pipeline has its own key, separate from Mathew's personal one, so
+it can be revoked on its own; sudo still needs Mathew's password, which GitHub never has.
 `.gitignore` blocks key files, and Actions masks secret values in logs.
 
 Other limits:
@@ -138,8 +137,8 @@ Secrets (repo → Settings → Secrets → Actions), none of which are in the re
 | Secret | Purpose |
 |---|---|
 | `VPS_HOST` | The Azure VM's public IP |
-| `VPS_USER` | `matthew`, matthew's own account on the VM |
-| `VPS_SSH_KEY` | Private half of a key made only for this pipeline; the public half is in `matthew`'s `authorized_keys` |
+| `VPS_USER` | `mathew`, Mathew's own account on the VM |
+| `VPS_SSH_KEY` | Private half of a key made only for this pipeline; the public half is in `mathew`'s `authorized_keys` |
 | `GITHUB_TOKEN` | Automatic, per job, revoked when the job ends; pushes and pulls the image |
 
 Azure settings that matter:
@@ -149,7 +148,7 @@ Azure settings that matter:
 | Image | Ubuntu Server 24.04 LTS, x64 | Matches the x86_64 image the pipeline builds |
 | Size | `Standard_B2ats_v2` or `Standard_B1s` | Free-account x64 sizes; enough memory for Docker and one small app |
 | Admin login | `azureuser` with the VM creator's SSH key | Sets the VM up; never given to GitHub |
-| matthew's account | `matthew`: password for sudo, two keys in `authorized_keys`, in the `docker` group | His personal key for him, the pipeline key for GitHub |
+| Mathew's account | `mathew`: password for sudo, two keys in `authorized_keys`, in the `docker` group | His personal key for him, the pipeline key for GitHub |
 | Inbound rules | 22 and 8080 from any source | 22 for the runners, 8080 for users of the API |
 
 Server-side settings live in `deploy/common.sh` as overridable environment variables
@@ -162,8 +161,8 @@ The full version is `docs/RUNBOOK.md`.
 * **Run locally:** `npm ci && npm start`, then open http://localhost:8080/health.
 * **Test:** `npm test` boots the app on a random port and calls every route. CI runs the same command.
 * **Set up the VM once:** create it in the portal and open port 8080. Then, as `azureuser`,
-  install Docker, create the `matthew` account, add both public keys and create
-  `/opt/tidewater-departures` owned by `matthew`.
+  install Docker, create the `mathew` account, add both public keys and create
+  `/opt/tidewater-departures` owned by `mathew`.
 * **Deploy:** push or merge to `main` and watch Actions → CI/CD. It is done when the Deploy
   job prints `health check passed` and `http://<vm-ip>:8080/health` shows the new SHA.
 * **Re-run a failed job:** open the run → *Re-run failed jobs*. Redeploying the same image
@@ -200,7 +199,7 @@ The full version is `docs/RUNBOOK.md`.
                                                  (unchanged layers are not re-uploaded)   VM tidewater-vm, Ubuntu 24.04 x64
                                                                                           dockerd ── docker pull :sha
                                                                                           container "tidewater-departures" :8080 → app :8080
-                                                                                          user matthew, HEALTHCHECK → /health
+                                                                                          user mathew, HEALTHCHECK → /health
                                                                                           state: /opt/tidewater-departures/state/{current,previous}
 ```
 
@@ -225,7 +224,7 @@ What the pieces are doing:
 * **Azure networking.** Traffic reaches the VM through its public IP and the network
   security group, a firewall that sits outside the VM. Only ports 22 and 8080 are allowed in.
 * **Deploy.** The runner never talks to Docker on the VM directly. It runs a shell script
-  over SSH as `matthew`. That script asks `dockerd` to pull the manifest, download missing
+  over SSH as `mathew`. That script asks `dockerd` to pull the manifest, download missing
   layers, remove the old `tidewater-departures` container and start a new one,
   publishing the VM's port 8080 to the app's port 8080 inside the container.
   `APP_VERSION` is already set inside the image, and `/health` returns it, which
