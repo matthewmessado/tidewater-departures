@@ -33,7 +33,7 @@ test('GET /departures lists every departure with seats left', async () => {
   const res = await fetch(`${baseUrl}/departures`);
   assert.equal(res.status, 200);
   const body = await res.json();
-  assert.equal(body.count, 5);
+  assert.equal(body.count, 6);
   assert.equal(body.departures.length, 5);
   assert.ok(body.departures.every((d) => d.seatsLeft === d.seatsTotal - d.seatsBooked));
 });

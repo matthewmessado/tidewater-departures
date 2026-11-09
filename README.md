@@ -6,7 +6,7 @@ Docker image tagged with the commit, pushed to GitHub Container Registry and dep
 a Linux VM on Azure, where a health check confirms it is serving. Rolling back to the
 previous image is one click.
 
-> Apex Projects solo project "Ship one service", by Mathew.
+> Apex Projects solo project "Ship one service", by matthew.
 > Runbook: [docs/RUNBOOK.md](docs/RUNBOOK.md). Nine-step notes: [docs/NINE-STEP-NOTES.md](docs/NINE-STEP-NOTES.md).
 > Hand-in checklist: [docs/HAND-IN.md](docs/HAND-IN.md).
 
@@ -98,7 +98,7 @@ same scripts would run unchanged on AWS EC2.
 | Image                    | Ubuntu Server 24.04 LTS, x64 | The pipeline builds x86_64 images                         |
 | Size                     | `Standard_B2ats_v2` (or `Standard_B1s`) | Free-account x64 sizes. **Not** B2pts v2: that one is Arm and cannot run the image |
 | Admin user               | `azureuser`, with the VM creator's SSH key | Sets the VM up once; never given to GitHub     |
-| Mathew's account         | `mathew`: a normal account with a password (for sudo) and two SSH keys | Mathew logs in with his own key; GitHub logs in with the pipeline's key |
+| matthew's account         | `matthew`: a normal account with a password (for sudo) and two SSH keys | matthew logs in with his own key; GitHub logs in with the pipeline's key |
 | Network security group   | Allow 22 and 8080 inbound from any source | 22 for GitHub's runners (they use many IPs), 8080 for the app |
 | Container / folder / port | `tidewater-departures` / `/opt/tidewater-departures` / `8080` | Set once at the top of both workflow files |
 
@@ -115,18 +115,18 @@ In PowerShell (on macOS or Linux, run the same commands with `~/.ssh/...` paths)
 mkdir $HOME\.ssh -Force | Out-Null
 
 # Your personal login key for the VM
-ssh-keygen -t ed25519 -C "mathew-azure" -f $HOME\.ssh\azure-mathew
+ssh-keygen -t ed25519 -C "matthew-azure" -f $HOME\.ssh\azure-matthew
 
 # GitHub Actions' key. Press Enter twice at the passphrase prompt: it must have none,
 # because GitHub's runner has nobody to type one.
 ssh-keygen -t ed25519 -C "tidewater-departures-deploy" -f $HOME\.ssh\tidewater-departures-deploy
 
 # The public halves (.pub) are safe to share with whoever sets up the VM
-Get-Content $HOME\.ssh\azure-mathew.pub
+Get-Content $HOME\.ssh\azure-matthew.pub
 Get-Content $HOME\.ssh\tidewater-departures-deploy.pub
 ```
 
-Both keys log in as `mathew`, but they stay separate. To cut GitHub off, delete the
+Both keys log in as `matthew`, but they stay separate. To cut GitHub off, delete the
 pipeline key's line from `authorized_keys`; your own login keeps working. The private
 halves (the files without `.pub`) stay on your laptop, except the pipeline key, which
 goes into GitHub's secrets in step 5.
@@ -140,7 +140,7 @@ portal.azure.com -> **Create a resource** -> **Virtual machine**, then on **Basi
 * **Size:** `Standard_B2ats_v2` (or `Standard_B1s` if offered). Avoid `B2pts v2` (Arm).
 * **Authentication:** SSH public key. **Username:** `azureuser`.
   **SSH public key source:** use existing public key, and paste the public key of whoever
-  administers the VM (that can be `azure-mathew.pub` if it is you).
+  administers the VM (that can be `azure-matthew.pub` if it is you).
 * **Public inbound ports:** allow selected ports, **SSH (22)**.
 
 **Review + create**, check the price shown, then **Create**. When it finishes, open the
@@ -163,7 +163,7 @@ the VM could give it a new address and break both your login and the pipeline.
 az group create --name tidewater-rg --location eastus
 az vm create --resource-group tidewater-rg --name tidewater-vm \
   --image Canonical:ubuntu-24_04-lts:server:latest --size Standard_B2ats_v2 \
-  --admin-username azureuser --ssh-key-values ~/.ssh/azure-mathew.pub --public-ip-sku Standard
+  --admin-username azureuser --ssh-key-values ~/.ssh/azure-matthew.pub --public-ip-sku Standard
 az vm open-port --resource-group tidewater-rg --name tidewater-vm --port 8080 --priority 1010
 ```
 
@@ -181,21 +181,21 @@ curl -fsSL https://get.docker.com | sudo sh
 sudo systemctl enable --now docker
 sudo docker run --rm hello-world            # prints "Hello from Docker!"
 
-# Mathew's account. Set a password when asked (it is for sudo); press Enter through the rest.
-sudo adduser mathew
-sudo usermod -aG docker mathew              # lets mathew (and the pipeline) run docker
-sudo usermod -aG sudo mathew                # optional: only if Mathew should be an admin too
+# matthew's account. Set a password when asked (it is for sudo); press Enter through the rest.
+sudo adduser matthew
+sudo usermod -aG docker matthew              # lets matthew (and the pipeline) run docker
+sudo usermod -aG sudo matthew                # optional: only if matthew should be an admin too
 
 # Both public keys from step 1, one full line each
-sudo install -d -m 700 -o mathew -g mathew /home/mathew/.ssh
-echo "ssh-ed25519 AAAA... mathew-azure" | sudo tee -a /home/mathew/.ssh/authorized_keys
-echo "ssh-ed25519 AAAA... tidewater-departures-deploy" | sudo tee -a /home/mathew/.ssh/authorized_keys
-sudo chown mathew:mathew /home/mathew/.ssh/authorized_keys
-sudo chmod 600 /home/mathew/.ssh/authorized_keys
+sudo install -d -m 700 -o matthew -g matthew /home/matthew/.ssh
+echo "ssh-ed25519 AAAA... matthew-azure" | sudo tee -a /home/matthew/.ssh/authorized_keys
+echo "ssh-ed25519 AAAA... tidewater-departures-deploy" | sudo tee -a /home/matthew/.ssh/authorized_keys
+sudo chown matthew:matthew /home/matthew/.ssh/authorized_keys
+sudo chmod 600 /home/matthew/.ssh/authorized_keys
 
 # The folder the deploy scripts use
 sudo mkdir -p /opt/tidewater-departures/bin /opt/tidewater-departures/state
-sudo chown -R mathew:mathew /opt/tidewater-departures
+sudo chown -R matthew:matthew /opt/tidewater-departures
 
 # Check SSH password login is off (Azure turns it off for key-based VMs)
 sudo sshd -T | grep -i '^passwordauthentication'   # should say: passwordauthentication no
@@ -205,15 +205,15 @@ If the upgrade says a reboot is needed, run `sudo reboot`, wait a minute and log
 Leave `ufw` off: Azure's port rules already do the firewall's job. If you ever turn it on,
 run `sudo ufw allow OpenSSH` and `sudo ufw allow 8080/tcp` first, or you lock yourself out.
 
-`mathew`'s password only unlocks sudo; with password login off, SSH accepts keys only.
-(Shortcut: after `sudo adduser mathew`, `deploy/vps-setup.sh` does the Docker, group, key
+`matthew`'s password only unlocks sudo; with password login off, SSH accepts keys only.
+(Shortcut: after `sudo adduser matthew`, `deploy/vps-setup.sh` does the Docker, group, key
 and folder steps in one go, one public key per run. See the top of that file.)
 
 ### 4. Check both keys (from your laptop)
 
 ```powershell
-ssh -i $HOME\.ssh\azure-mathew mathew@<vm-ip> docker ps
-ssh -i $HOME\.ssh\tidewater-departures-deploy mathew@<vm-ip> docker ps
+ssh -i $HOME\.ssh\azure-matthew matthew@<vm-ip> docker ps
+ssh -i $HOME\.ssh\tidewater-departures-deploy matthew@<vm-ip> docker ps
 ```
 
 Both should print an empty table without asking for a password. The second one is
@@ -228,7 +228,7 @@ once per row. Use Secrets, not Variables: variables are stored and shown in plai
 | Secret        | Value                                                                                         |
 |---------------|-----------------------------------------------------------------------------------------------|
 | `VPS_HOST`    | The VM's public IP                                                                            |
-| `VPS_USER`    | `mathew`                                                                                      |
+| `VPS_USER`    | `matthew`                                                                                      |
 | `VPS_SSH_KEY` | The whole private key file `~/.ssh/tidewater-departures-deploy`, including the BEGIN and END lines |
 
 To copy the private key without opening it:

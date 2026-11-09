@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # OPTIONAL SHORTCUT. The README (One-time setup, step 3) prepares the VM by hand with a
-# normal `mathew` account. This script does the same Docker, group, key and folder steps
+# normal `matthew` account. This script does the same Docker, group, key and folder steps
 # in one go for tidewater-departures on port 8080, on the Azure VM (Ubuntu 24.04, x64).
 #
 # Create the account first so it has a password for sudo (as azureuser on the VM):
-#   sudo adduser mathew
+#   sudo adduser matthew
 # Then, from this project folder on your laptop, once per public key:
 #   scp deploy/vps-setup.sh azureuser@<vm-ip>:/tmp/
-#   ssh -t azureuser@<vm-ip> "sudo bash /tmp/vps-setup.sh mathew '<one .pub line>'"
+#   ssh -t azureuser@<vm-ip> "sudo bash /tmp/vps-setup.sh matthew '<one .pub line>'"
 #
 # If the user does not exist, the script creates it with no password (key-only, no sudo).
 # Arguments: <linux-user> [<public-key>]

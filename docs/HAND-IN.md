@@ -16,8 +16,8 @@ Due: **Mon 9 Nov, 09:00**
 - [ ] Personal key and pipeline key created on your laptop
 - [ ] Azure VM created: Ubuntu 24.04 x64, `Standard_B2ats_v2` or `Standard_B1s`, SSH key login
 - [ ] Inbound rules allow 22 and 8080 from any source
-- [ ] VM prepared: Docker installed, `mathew` account created, both public keys added, `/opt/tidewater-departures` owned by `mathew`
-- [ ] Both `ssh -i ... mathew@<vm-ip> docker ps` checks (personal key and pipeline key) work without a password
+- [ ] VM prepared: Docker installed, `matthew` account created, both public keys added, `/opt/tidewater-departures` owned by `matthew`
+- [ ] Both `ssh -i ... matthew@<vm-ip> docker ps` checks (personal key and pipeline key) work without a password
 - [ ] Three secrets added to the repo (`VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`)
 - [ ] First push to `main` is green end to end; `http://<vm-ip>:8080/health` shows the SHA
 - [ ] Red run produced and reverted, so two green deploys now exist
@@ -36,7 +36,7 @@ Due: **Mon 9 Nov, 09:00**
 - Why pipe `GITHUB_TOKEN` over stdin to the VM instead of storing a registry password? (short-lived, scoped, never on a command line or kept on disk)
 - Why keep `previous` on the VM and not in GitHub? (rollback still works if GitHub is down)
 - What happens if the new container never gets healthy? (`deploy.sh` restarts the previous one and fails the job)
-- Why does GitHub get its own key instead of Mathew's personal key? (it can be revoked on its own without locking Mathew out, and his personal key never leaves his laptop)
+- Why does GitHub get its own key instead of matthew's personal key? (it can be revoked on its own without locking matthew out, and his personal key never leaves his laptop)
 - Why not let the pipeline log in as `azureuser`? (`azureuser` has passwordless sudo; the pipeline only needs Docker and its own folder)
 - Why is SSH open to any source, and why is that acceptable? (GitHub's runners use many IPs; login is key-only, with no passwords)
 - Why must the VM be x64? (the pipeline builds an x86_64 image; the free Arm size would fail with "exec format error")

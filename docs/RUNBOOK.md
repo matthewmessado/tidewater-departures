@@ -1,6 +1,6 @@
 # Runbook: Tidewater Tours Departures API
 
-**Service:** container `tidewater-departures` on the Azure VM `tidewater-vm` (Ubuntu 24.04, x64), port 8080, Linux user `mathew`.
+**Service:** container `tidewater-departures` on the Azure VM `tidewater-vm` (Ubuntu 24.04, x64), port 8080, Linux user `matthew`.
 **Registry:** `ghcr.io/<owner>/tidewater-departures:<commit-sha>`.
 **Health:** `curl http://<vm-ip>:8080/health` → `{"status":"ok","version":"<sha>",...}`. The `version` is the git commit that is live.
 
@@ -27,7 +27,7 @@
 * Verify: `curl http://<vm-ip>:8080/health` shows the older SHA.
 
 **From the VM** (if GitHub is unreachable):
-`ssh -i ~/.ssh/tidewater-departures-deploy mathew@<vm-ip> /opt/tidewater-departures/bin/rollback.sh`
+`ssh -i ~/.ssh/tidewater-departures-deploy matthew@<vm-ip> /opt/tidewater-departures/bin/rollback.sh`
 
 ## Where things live
 
@@ -48,13 +48,13 @@ The deploy job stops with a named error. What each one means:
 * **Bad SSH key:** `VPS_SSH_KEY` must be the whole private key file, with no passphrase.
 * **VM unreachable:** the VM is stopped, `VPS_HOST` is not its public IP, or the network
   security group does not allow SSH (22) from **any** source.
-* **SSH login refused:** the pipeline's public key is not in `/home/mathew/.ssh/authorized_keys`,
+* **SSH login refused:** the pipeline's public key is not in `/home/matthew/.ssh/authorized_keys`,
   or that file's permissions are wrong. Redo README step 3's key lines as `azureuser`.
-* **Docker not usable:** `mathew` is not in the `docker` group. As `azureuser`:
-  `sudo usermod -aG docker mathew`.
-* **Server not prepared:** `/opt/tidewater-departures` is missing or not owned by `mathew`.
+* **Docker not usable:** `matthew` is not in the `docker` group. As `azureuser`:
+  `sudo usermod -aG docker matthew`.
+* **Server not prepared:** `/opt/tidewater-departures` is missing or not owned by `matthew`.
   As `azureuser`: `sudo mkdir -p /opt/tidewater-departures/bin /opt/tidewater-departures/state`
-  then `sudo chown -R mathew:mathew /opt/tidewater-departures`.
+  then `sudo chown -R matthew:matthew /opt/tidewater-departures`.
 * **Wrong CPU type:** the VM is Arm. Recreate it with an x64 size such as `Standard_B2ats_v2`.
 * **Health check failed:** the Actions log already shows the container's last 30 log lines.
 * **Deploy is green but the browser cannot load the page:** port 8080 is not open in the
